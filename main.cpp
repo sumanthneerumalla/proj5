@@ -1,6 +1,14 @@
 #include <iostream>
+#include "HashTable.h"
+#include "words.h"
+#include "primes.h"
+
+#include <iostream>
+
+using namespace std;
 
 int main() {
-    std::cout << "Hello, World!" << std::endl;
+
+
     return 0;
 }
