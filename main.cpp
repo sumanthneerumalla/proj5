@@ -9,6 +9,8 @@ using namespace std;
 
 int main() {
 
+   HashTable T(107) ;
+    T.insert("tributes") ;	// 21
 
     return 0;
 }
