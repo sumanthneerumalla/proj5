@@ -74,6 +74,7 @@ private:
 
     char** Table1;
     char** Table2;
+    char* myLocation; //used for debugging and testing insertions
 };
 
 

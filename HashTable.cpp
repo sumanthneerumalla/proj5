@@ -27,7 +27,7 @@ HashTable::HashTable(int n) {
     }
     //initialize sizes of the variables used for arrays
     capacity1 = totalCapacity = n;
-    size1 = 0;
+    totalSize = size1 = 0;
     capacity2 = capacity3 = -1;
     size2 = size3 = -1;
 
@@ -191,6 +191,7 @@ void HashTable::insert(const char *str) {
                 }
                 if ((Table1[insertionPoint] == NULL) or (Table1[insertionPoint] == DELETED)) {
                     //we insert if the array index is null or, the location there was deleted recently
+                    myLocation = Table1[insertionPoint];//used for debugging and gdb purposes
                     Table1[insertionPoint] = strdup(str);
                     success = true;
                 } else {
@@ -219,6 +220,7 @@ void HashTable::insert(const char *str) {
 void HashTable::beginRehashing1() {
 //do only if is rehashing AND table 2 doesn't already exist
     if (isRehashing() && (Table2 == NULL)) {
+        size2 = 0;
 
         //this will only be called if rehashing needs to start.
         int FOURTIMES = 4;//the new table will be 4 times as large.
@@ -256,6 +258,7 @@ int HashTable::findStartOfCluster(int index) {
             index--;
         }
     }
+    return 0;
 }
 
 int HashTable::migrateCluster(int index) {
@@ -288,6 +291,7 @@ int HashTable::migrateCluster(int index) {
 //searches the arrays for the string.
 bool HashTable::find(const char *str) {
 
+    checkToRehash();//move over stuff if needed
     int hashValue = hashCode(str);
     int insertCopy;
     int insertionPoint = insertCopy = hashValue % capacity1;
@@ -298,15 +302,15 @@ bool HashTable::find(const char *str) {
     int count = 0;
     while ((success == false)) {
         //we either find it
-        if (strcmp(str, Table1[insertionPoint]) == 0) {
-            return true;
-            //if the spot is taken, or deleted, we keep searching the cluster
+        if (Table1[insertionPoint] == NULL) {
+            //end the loop if we cant find it
+            break;
         } else if ((Table1[insertionPoint] != NULL) or (Table1[insertionPoint] == DELETED)) {
             count++;
             insertionPoint++;
-        } else if (Table1[insertionPoint] == NULL) {
-            //end the loop if we cant find it
-            break;
+        } else if (strcmp(str, Table1[insertionPoint]) == 0) {
+            return true;
+            //if the spot is taken, or deleted, we keep searching the cluster
         }
 
     }
@@ -325,12 +329,12 @@ bool HashTable::find(const char *str) {
         bool success1 = false;
         while ((success1 == false)) {
             //we either find it
-            if (strcmp(str, Table1[insertionPoint1]) == 0) {
+            if (strcmp(str, Table2[insertionPoint1]) == 0) {
                 return true;
                 //if the spot is taken, or deleted, we keep searching the cluster
-            } else if ((Table1[insertionPoint1] != NULL) or (Table1[insertionPoint1] == DELETED)) {
+            } else if ((Table2[insertionPoint1] != NULL) or (Table2[insertionPoint1] == DELETED)) {
                 insertionPoint1++;
-            } else if (Table1[insertionPoint1] == NULL) {
+            } else if (Table2[insertionPoint1] == NULL) {
                 //end the loop if we cant find it
                 break;
             }
@@ -486,4 +490,113 @@ void HashTable::finishMigrate() {
         size2++;
     }
 }
+
+char *HashTable::remove(const char *str) {
+
+    if (find(str)) {
+        int hashValue = hashCode(str);
+        int insertCopy;
+        int insertionPoint = insertCopy = hashValue % capacity1;
+
+        //find where it would be inserted in the first table
+
+        bool success = false;
+        int count = 0;
+        while ((success == false)) {
+            //we either find it
+            if (strcmp(str, Table1[insertionPoint]) == 0) {
+                free(Table1[insertionPoint]);
+                Table1[insertionPoint] = DELETED;
+                success = true;
+                //if the spot is taken, or deleted, we keep searching the cluster
+            } else if ((Table1[insertionPoint] != NULL) or (Table1[insertionPoint] == DELETED)) {
+                count++;
+                insertionPoint++;
+            } else if (Table1[insertionPoint] == NULL) {
+                //if we hit a null it means we stop
+                break;
+            }
+
+        }
+
+        //if we're rehashing, we search the second table too
+        if (isRehashing()) {
+            int start = findStartOfCluster(insertCopy);
+            migrateCluster(start);
+
+
+            //then we search the second table
+            int insertionPoint1 = hashValue % capacity2;
+
+            //find where it would be inserted in the first table
+
+            bool success1 = false;
+            while ((success1 == false)) {
+                //we either find it
+                if (strcmp(str, Table2[insertionPoint1]) == 0) {
+                    free(Table2[insertionPoint]);
+                    Table2[insertionPoint] = DELETED;
+                    success1 = true;
+                    return Table2[insertionPoint];
+                    //if the spot is taken, or deleted, we keep searching the cluster
+                } else if ((Table2[insertionPoint1] != NULL) or (Table2[insertionPoint1] == DELETED)) {
+                    insertionPoint1++;
+                } else if (Table2[insertionPoint1] == NULL) {
+                    //end the loop if we cant find it
+                    break;
+                }
+
+            }
+
+        }
+
+    }
+
+
+//if its not in either table,we return a NULL
+    return NULL;
+}
+
+HashTable::HashTable(HashTable &other) {
+    isReHashingBool = other.isReHashingBool;
+    capacity1 = other.capacity1;
+    capacity2 = other.capacity2;
+    capacity3 = other.capacity3;
+    size1 = other.size1;
+    size2 = other.size2;
+    size3 = other.size3;
+
+
+    Table1 = new char *[size1]();
+    //make new table of the same size and copy over strings
+    for (int i = 0; i < size1; ++i) {
+        Table1[i] = strdup(other.Table1[i]);
+
+    }
+
+    if(isReHashingBool){
+        Table2 = new char *[size2]();
+        //make new table of the same size and copy over strings
+        for (int i = 0; i < size2; ++i) {
+            Table2[i] = strdup(other.Table2[i]);
+
+        }
+
+    }
+
+}
+
+HashTable &HashTable::operator=(HashTable &rhs) {
+//    if(this == &rhs){
+//return *this;
+//
+//    }
+//
+//    delete this;
+//
+//    this = new HashTable(rhs.totalSize);
+//
+
+}
+
 
